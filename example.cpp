@@ -6,7 +6,7 @@
 using namespace std;
 
 function<double(int, double, int)> axpb = [](int a, double x, int b) {
-  return a*x + b;
+  return a * x + b;
 };
 
 function<int(int, int)> apb = [](int a, int b) {
