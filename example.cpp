@@ -1,6 +1,7 @@
 #include <iostream>
 #include <functional>
 #include "autofunction.hpp"
+#include "testfunction.hpp"
 
 using namespace std;
 
@@ -28,11 +29,29 @@ int main() {
   lua_State* L = luaL_newstate();
   luaL_openlibs(L);
 
+  const char* apb_path = "apb";
   lua_pushcfunction(L, apb_LuaCB);
-  lua_setglobal(L, "apb");
+  lua_setglobal(L, apb_path);
 
+  const char* axpb_path = "axpb";
   lua_pushcfunction(L, axpb_LuaCB);
-  lua_setglobal(L, "axpb");
+  lua_setglobal(L, axpb_path);
+
+  cout << "test 1: ";
+  if (testfunction::check(L, apb_path, 5, 0) == 0) cout << "pass" << endl;
+  else cout << "fail" << endl;
+
+  cout << "test 2: ";
+  if (testfunction::check(L, apb_path, 10, 1, 9) == 0) cout << "pass" << endl;
+  else cout << "fail" << endl;
+
+  cout << "test 3: ";
+  if (testfunction::check(L, axpb_path, 0.0) == 0) cout << "pass" << endl;
+  else cout << "fail" << endl;
+
+  cout << "test 4: ";
+  if (testfunction::check(L, axpb_path, 17.2, 4, 5.3, -4) == 0) cout << "pass" << endl;
+  else cout << "fail" << endl;
 
   while (1) {
     cout << "lua> ";

@@ -1,10 +1,9 @@
 /**
- * Autogenerating Lua callback functions.
+ * Auto-generating Lua callback functions.
  *
  * Only works with int and double functions at the moment.
  *
  **/
-
 
 #ifndef AUTOFUNCTION_HPP_
 #define AUTOFUNCTION_HPP_
@@ -17,17 +16,20 @@ using std_lua_cfunction = std::function<int(lua_State*)>;
 namespace autofunction {
 struct noneType {};
 
-void get_type(lua_State* L, int index, int& val) { val = luaL_checkinteger(L, index); }
-void get_type(lua_State* L, int index, int& val, int optional) { val = luaL_optinteger(L, index, optional); }
+inline void get_type(lua_State* L, int index, int& val) { val = luaL_checkinteger(L, index); }
+inline void get_type(lua_State* L, int index, int& val, int optional) { val = luaL_optinteger(L, index, optional); }
 
-void get_type(lua_State* L, int index, double& val) { val = luaL_checknumber(L, index); }
-void get_type(lua_State* L, int index, double& val, double optional) { val = luaL_optnumber(L, index, optional); }
+inline void get_type(lua_State* L, int index, double& val) { val = luaL_checknumber(L, index); }
+inline void get_type(lua_State* L, int index, double& val, double optional) { val = luaL_optnumber(L, index, optional); }
+
+inline void push_type(lua_State* L, int val) { lua_pushnumber(L, val); }
+inline void push_type(lua_State* L, double val) { lua_pushnumber(L, val); }
 
 
 /**
  * Handle the return type
  **/
-std_lua_cfunction generate(int, std::function<void(lua_State*)> f) {
+inline std_lua_cfunction generate(int, std::function<void(lua_State*)> f) {
   auto _f = [f](lua_State* L) {
     f(L);
     return 0;
@@ -35,24 +37,15 @@ std_lua_cfunction generate(int, std::function<void(lua_State*)> f) {
   return _f;
 }
 
-std_lua_cfunction generate(int, std::function<int(lua_State*)> f) {
+template<typename return_type>
+std_lua_cfunction generate(int, std::function<return_type(lua_State*)> f) {
   auto _f = [f](lua_State* L) {
-    int val = f(L);
-    lua_pushnumber(L, val);
+    return_type val = f(L);
+    push_type(L, val);
     return 1;
   };
   return _f;
 }
-
-std_lua_cfunction generate(int, std::function<double(lua_State*)> f) {
-  auto _f = [f](lua_State* L) {
-    double val = f(L);
-    lua_pushnumber(L, val);
-    return 1;
-  };
-  return _f;
-}
-
 
 /**
  * Working though the arguments
