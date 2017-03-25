@@ -1,4 +1,4 @@
-lua.root = lua-5.1.5
+lua.root = lua
 lua.Iflags = -I$(lua.root)/include -I$(lua.root)/etc
 lua.Lflags = -L$(lua.root)/lib
 lua.lflags = -llua

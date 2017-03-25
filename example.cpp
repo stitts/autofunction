@@ -13,17 +13,11 @@ function<int(int, int)> apb = [](int a, int b) {
   return a + b;
 };
 
-std_lua_cfunction axpb_std_LuaCB = autofunction::generate(axpb, 0, 0.0, 0);
+// These could be done in one step
+std_lua_cfunction axpb_std_LuaCB = autofunction::generate(axpb);
 std_lua_cfunction apb_std_LuaCB = autofunction::generate(apb, autofunction::noneType(), 5);
-
-int axpb_LuaCB(lua_State* L) {
-  return axpb_std_LuaCB(L);
-}
-
-int apb_LuaCB(lua_State* L) {
-  return apb_std_LuaCB(L);
-}
-
+int axpb_LuaCB(lua_State* L) { return axpb_std_LuaCB(L); }
+int apb_LuaCB(lua_State* L) { return apb_std_LuaCB(L); }
 
 int main() {
   lua_State* L = luaL_newstate();
@@ -46,10 +40,6 @@ int main() {
   else cout << "fail" << endl;
 
   cout << "test 3: ";
-  if (testfunction::check(L, axpb_path, 0.0) == 0) cout << "pass" << endl;
-  else cout << "fail" << endl;
-
-  cout << "test 4: ";
   if (testfunction::check(L, axpb_path, 17.2, 4, 5.3, -4) == 0) cout << "pass" << endl;
   else cout << "fail" << endl;
 
