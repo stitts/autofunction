@@ -9,7 +9,6 @@
 
 using namespace std;
 
-string stdstr = "just a std::string";
 
 function<double(int, double, int)> axpb = [](int a, double x, int b) {
   return a * x + b;
@@ -24,8 +23,6 @@ function<bool(const char*)> is_hello = [](const char* s) {
   return strcmp(s, "hello") == 0;
 };
 
-//funciton<const char*()
-
 function<string(int, double, bool, const char*, string)> make_string =
 [](int a, double b, bool c, const char* d, string e) {
   stringstream s;
@@ -34,12 +31,26 @@ function<string(int, double, bool, const char*, string)> make_string =
   return s.str();
 };
 
-// These could be done in one step
+
+/**
+ * Generate the std::function lua wrappers and the c function wrappers.
+ * TODO: do this in one step. macro?
+ **/
+
+// double returns, int/double args, all requireds args
 std_lua_cfunction axpb_std_LuaCB = autofunction::generate(axpb);
+
+// int returns, concurrent optionals and requireds args
 std_lua_cfunction apb_std_LuaCB = autofunction::generate(apb, autofunction::noneType(), 5);
-std_lua_cfunction make_string_std_LuaCB = autofunction::generate(make_string, 6, 9.22, true, "just a cstr", stdstr);
+
+// bool return, bool and const char* args
 std_lua_cfunction is_hello_std_LuaCB = autofunction::generate(is_hello, "ello");
 
+// std::string returns,  std::sting args, all optionals args
+string stdstr = "just a std::string";
+std_lua_cfunction make_string_std_LuaCB = autofunction::generate(make_string, 6, 9.22, true, "just a cstr", stdstr);
+
+// c function wrap
 int axpb_LuaCB(lua_State* L) { return axpb_std_LuaCB(L); }
 int apb_LuaCB(lua_State* L) { return apb_std_LuaCB(L); }
 int make_string_LuaCB(lua_State* L) { return make_string_std_LuaCB(L); }
@@ -67,7 +78,6 @@ int test(lua_State* L, int test_number, int(*luacb)(lua_State*), const char* pat
   lua_setglobal(L, path);
   return test(L, test_number, path, e, as...);
 }
-
 
 int main() {
   lua_State* L = luaL_newstate();
