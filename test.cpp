@@ -23,6 +23,10 @@ function<bool(const char*)> is_hello = [](const char* s) {
   return strcmp(s, "hello") == 0;
 };
 
+function<const char*()> filename = []() {
+  return __FILE__;
+};
+
 function<string(int, double, bool, const char*, string)> make_string =
 [](int a, double b, bool c, const char* d, string e) {
   stringstream s;
@@ -32,9 +36,29 @@ function<string(int, double, bool, const char*, string)> make_string =
 };
 
 
+
 /**
  * Generate the std::function lua wrappers and the c function wrappers.
  * TODO: do this in one step. macro?
+ *
+ * What's tested:
+ *  return types  - X
+ *   double       - X
+ *   int          - X
+ *   bool         - X
+ *   const char*  - X
+ *   std::string  - X
+ *  args:         - X
+ *   double       - X
+ *   int          - X
+ *   bool         - X
+ *   const char*  - X
+ *   std::string  - X
+ *   void (none)  - X
+ *  arg list kind - X
+ *   required     - X
+ *   optional     - X
+ *   mixed        - X
  **/
 
 // double returns, int/double args, all requireds args
@@ -46,16 +70,19 @@ std_lua_cfunction apb_std_LuaCB = autofunction::generate(apb, autofunction::none
 // bool return, bool and const char* args
 std_lua_cfunction is_hello_std_LuaCB = autofunction::generate(is_hello, "ello");
 
-// std::string returns,  std::sting args, all optionals args
+// std::string returns, std::sting args, all optionals args
 string stdstr = "just a std::string";
 std_lua_cfunction make_string_std_LuaCB = autofunction::generate(make_string, 6, 9.22, true, "just a cstr", stdstr);
+
+// const char* returns, void (no) args
+std_lua_cfunction filename_std_LuaCB = autofunction::generate(filename);
 
 // c function wrap
 int axpb_LuaCB(lua_State* L) { return axpb_std_LuaCB(L); }
 int apb_LuaCB(lua_State* L) { return apb_std_LuaCB(L); }
 int make_string_LuaCB(lua_State* L) { return make_string_std_LuaCB(L); }
 int is_hello_LuaCB(lua_State* L) { return is_hello_std_LuaCB(L); }
-
+int filename_LuaCB(lua_State* L) { return filename_std_LuaCB(L); }
 
 /**
  * There functions wrap testing output. One takes a lua_cfunction and will push this
@@ -102,6 +129,9 @@ int main() {
   error_count += test(L, test_count++, make_string_LuaCB, "make_string", expected, 1, 1.1, true, "aaa", bbb);
   expected = "6 9.22 0 just a cstr just a std::string";
   error_count += test(L, test_count++, "make_string", expected);
+
+  // using filename
+  error_count += test(L, test_count++, filename_LuaCB, "filename", __FILE__);
 
   lua_close(L);
   return error_count;

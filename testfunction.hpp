@@ -29,6 +29,10 @@ int push(lua_State* L, head h, tail... ts) {
   return 1 + push(L, ts...);
 }
 
+bool eq(const char* lhs, const char* rhs) { return strcmp(lhs, rhs) == 0; }
+template<typename T>
+bool eq(T lhs, T rhs) { return lhs == rhs; }
+
 template<typename result, typename... args>
 int check(lua_State* L, const char* global_name, result expected, args... as) {
   lua_getglobal(L, global_name);
@@ -49,7 +53,7 @@ int check(lua_State* L, const char* global_name, result expected, args... as) {
   result actual;
   autofunction::get_type(L, lua_gettop(L), actual);
   lua_pop(L, 1);
-  if (expected != actual) {
+  if (!eq(expected,actual)) {
     std::cerr << "error: actual result differs from expected: " << actual << " != " << expected << std::endl;
     return 3;
   }

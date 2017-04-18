@@ -117,6 +117,15 @@ std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, 
 /**
  * Starting place
  **/
+template<typename return_type>
+std_lua_cfunction generate(std::function<return_type()> f) {
+  std::function<return_type(lua_State*)> _f = [f](lua_State*) {
+    return f();
+  };
+
+  return generate(1, _f);
+}
+
 template<typename return_type, typename head, typename... tail>
 std_lua_cfunction generate(std::function<return_type(head, tail...)> f) {
   std::function<return_type(lua_State*, head, tail...)> _f = [f](lua_State*, head h, tail... ts) {
