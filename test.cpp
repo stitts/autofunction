@@ -6,6 +6,7 @@
 #include "autofunction.hpp"
 #include "testfunction.hpp"
 
+
 using namespace std;
 
 string stdstr = "just a std::string";
@@ -45,50 +46,46 @@ int make_string_no_opt_LuaCB(lua_State* L) { return make_string_no_opt_std_LuaCB
 int make_string_LuaCB(lua_State* L) { return make_string_std_LuaCB(L); }
 int is_hello_LuaCB(lua_State* L) { return is_hello_std_LuaCB(L); }
 
+
+/**
+ * There functions wrap testing output. One takes a lua_cfunction and will push this
+ * and set the global path given 'path'. The other uses the function at 'path'.
+ **/
+template<typename expected, typename... args>
+int test(lua_State* L, int test_number, const char* path, expected e, args... as) {
+  cout << "test " << test_number <<  ": ";
+  if (testfunction::check(L, path, e, as...) == 0) {
+    cout << "pass" << endl << endl;
+    return 0;
+  }
+  cout << "fail" << endl << endl;
+  return 1;
+}
+
+template<typename expected, typename... args>
+int test(lua_State* L, int test_number, int(*luacb)(lua_State*), const char* path, expected e, args... as) {
+  lua_pushcfunction(L, luacb);
+  lua_setglobal(L, path);
+  return test(L, test_number, path, e, as...);
+}
+
+
 int main() {
   lua_State* L = luaL_newstate();
   luaL_openlibs(L);
+  int test_count = 1;
+  int error_count = 0;
 
-  const char* apb_path = "apb";
-  lua_pushcfunction(L, apb_LuaCB);
-  lua_setglobal(L, apb_path);
+  // using apb
+  error_count += test(L, test_count++, apb_LuaCB, "apb", 5, 0);
+  error_count += test(L, test_count++, "apb", 10, 1, 9);
 
-  cout << "test 1: ";
-  if (testfunction::check(L, apb_path, 5, 0) == 0) cout << "pass" << endl;
-  else cout << "fail" << endl;
-  cout << endl;
+  // using axpb
+  error_count += test(L, test_count++, axpb_LuaCB, "axpb", 17.2, 4, 5.3, -4);
 
-  cout << "test 2: ";
-  if (testfunction::check(L, apb_path, 10, 1, 9) == 0) cout << "pass" << endl;
-  else cout << "fail" << endl;
-  cout << endl;
-
-
-  const char* axpb_path = "axpb";
-  lua_pushcfunction(L, axpb_LuaCB);
-  lua_setglobal(L, axpb_path);
-
-  cout << "test 3: ";
-  if (testfunction::check(L, axpb_path, 17.2, 4, 5.3, -4) == 0) cout << "pass" << endl;
-  else cout << "fail" << endl;
-  cout << endl;
-
-
-  const char* is_hello_path = "is_hello";
-  lua_pushcfunction(L, is_hello_LuaCB);
-  lua_setglobal(L, is_hello_path);
-
-  cout << "test 4: ";
-  if (testfunction::check(L, is_hello_path, false) == 0) cout << "pass" << endl;
-  else cout << "fail" << endl;
-  cout << endl;
-
-  const char* hello = "hello";
-  cout << "test 5: ";
-  if (testfunction::check(L, is_hello_path, true, hello) == 0) cout << "pass" << endl;
-  else cout << "fail" << endl;
-  cout << endl;
-
+  // using is_hello
+  error_count += test(L, test_count++, is_hello_LuaCB, "is_hello", false);
+  error_count += test(L, test_count++, "is_hello", true, "hello");
 
   /*
   const char* make_string_no_opt_path = "make_str_no_opt";
@@ -125,5 +122,5 @@ int main() {
   }*/
 
   lua_close(L);
-  return 0;
+  return error_count;
 }

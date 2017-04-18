@@ -5,9 +5,10 @@ lua.lflags = -llua
 
 .PHONY: clean
 
-example: example.cpp autofunction.hpp testfunction.hpp
+test: test.cpp autofunction.hpp testfunction.hpp
 	$(CXX) -std=c++0x $(lua.Iflags) $(lua.Lflags) $(lua.lflags) $< -o $@
+	./$(@)
 
 clean:
-	rm -rf example *.o
+	rm -rf test *.o
 
