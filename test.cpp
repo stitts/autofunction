@@ -36,7 +36,6 @@ function<string(int, double, bool, const char*, string)> make_string =
 };
 
 
-
 /**
  * Generate the std::function lua wrappers and the c function wrappers.
  * TODO: do this in one step. macro?

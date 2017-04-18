@@ -19,6 +19,10 @@ using floating_point_type = double;
 namespace autofunction {
 struct noneType {};
 
+/**
+ * Lua doesn't have these. (at least Lua 5.1)
+ * TODO: check and #ifdef on lua version if 5.2 or 5.3 has this
+ **/
 inline bool checkboolean(lua_State* L, int stack_index) {
   if (lua_type(L, stack_index) != LUA_TBOOLEAN) luaL_argerror(L, stack_index, "expected boolean");
   return lua_toboolean(L, stack_index);
@@ -29,6 +33,10 @@ inline bool optboolean(lua_State* L, int stack_index, bool optional) {
   return lua_toboolean(L, stack_index);
 }
 
+
+/**
+ * Grabbing from the stack. The resutl is stored in val
+ **/
 inline void get_type(lua_State* L, int index, integer_type& val) { val = luaL_checkinteger(L, index); }
 inline void get_type(lua_State* L, int index, integer_type& val, integer_type optional) { val = luaL_optinteger(L, index, optional); }
 
@@ -44,6 +52,10 @@ inline void get_type(lua_State* L, int index, const char*& val, const char* opti
 inline void get_type(lua_State* L, int index, std::string& val) { val = luaL_checkstring(L, index); }
 inline void get_type(lua_State* L, int index, std::string& val, const std::string& optional) { val = luaL_optstring(L, index, optional.c_str()); }
 
+
+/**
+ * Pushing to the stack
+ **/
 inline void push_type(lua_State* L, const integer_type& val) { lua_pushnumber(L, val); }
 inline void push_type(lua_State* L, const floating_point_type& val) { lua_pushnumber(L, val); }
 inline void push_type(lua_State* L, const bool& val) { lua_pushboolean(L, val); }
@@ -71,6 +83,7 @@ std_lua_cfunction generate(int, std::function<return_type(lua_State*)> f) {
   };
   return _f;
 }
+
 
 /**
  * Working though the arguments
@@ -114,6 +127,7 @@ std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, 
   return generate(++arg_index, _f, opt_ts...);
 }
 
+
 /**
  * Starting place
  **/
@@ -143,6 +157,5 @@ std_lua_cfunction generate(std::function<return_type(head, tail...)> f, opt_head
 
   return generate(1, _f, opt_h, opt_ts...);
 }
-
 } // namespace autofunction
 #endif
