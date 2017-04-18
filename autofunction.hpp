@@ -9,21 +9,46 @@
 #define AUTOFUNCTION_HPP_
 
 #include <functional>
+#include <string>
 #include <lua.hpp>
 
 using std_lua_cfunction = std::function<int(lua_State*)>;
+using integer_type = int;
+using floating_point_type = double;
 
 namespace autofunction {
 struct noneType {};
 
-inline void get_type(lua_State* L, int index, int& val) { val = luaL_checkinteger(L, index); }
-inline void get_type(lua_State* L, int index, int& val, int optional) { val = luaL_optinteger(L, index, optional); }
+inline bool checkboolean(lua_State* L, int stack_index) {
+  if (lua_type(L, stack_index) != LUA_TBOOLEAN) luaL_argerror(L, stack_index, "expected boolean");
+  return lua_toboolean(L, stack_index);
+}
 
-inline void get_type(lua_State* L, int index, double& val) { val = luaL_checknumber(L, index); }
-inline void get_type(lua_State* L, int index, double& val, double optional) { val = luaL_optnumber(L, index, optional); }
+inline bool optboolean(lua_State* L, int stack_index, bool optional) {
+  if (lua_type(L, stack_index) == LUA_TNIL) return optional;
+  return lua_toboolean(L, stack_index);
+}
 
-inline void push_type(lua_State* L, int val) { lua_pushnumber(L, val); }
-inline void push_type(lua_State* L, double val) { lua_pushnumber(L, val); }
+inline void get_type(lua_State* L, int index, integer_type& val) { val = luaL_checkinteger(L, index); }
+inline void get_type(lua_State* L, int index, integer_type& val, integer_type optional) { val = luaL_optinteger(L, index, optional); }
+
+inline void get_type(lua_State* L, int index, floating_point_type& val) { val = luaL_checknumber(L, index); }
+inline void get_type(lua_State* L, int index, floating_point_type& val, floating_point_type optional) { val = luaL_optnumber(L, index, optional); }
+
+inline void get_type(lua_State* L, int index, bool& val) { val = checkboolean(L, index); }
+inline void get_type(lua_State* L, int index, bool& val, bool optional) { val = optboolean(L, index, optional); }
+
+inline void get_type(lua_State* L, int index, const char* val) { val = luaL_checkstring(L, index); }
+inline void get_type(lua_State* L, int index, const char* val, const char* optional) { val = luaL_optstring(L, index, optional); }
+
+inline void get_type(lua_State* L, int index, std::string& val) { val = luaL_checkstring(L, index); }
+inline void get_type(lua_State* L, int index, std::string& val, const std::string& optional) { val = luaL_optstring(L, index, optional.c_str()); }
+
+inline void push_type(lua_State* L, const integer_type& val) { lua_pushnumber(L, val); }
+inline void push_type(lua_State* L, const floating_point_type& val) { lua_pushnumber(L, val); }
+inline void push_type(lua_State* L, const bool& val) { lua_pushboolean(L, val); }
+inline void push_type(lua_State* L, const char*& val) { lua_pushstring(L, val); }
+inline void push_type(lua_State* L, const std::string& val) { lua_pushstring(L, val.c_str()); }
 
 
 /**
