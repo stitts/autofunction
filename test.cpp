@@ -87,6 +87,7 @@ std_lua_cfunction make_string_std_LuaCB = autofunction::generate(make_string, 6,
 // const char* returns, void (no) args
 std_lua_cfunction filename_std_LuaCB = autofunction::generate(filename);
 
+// userdata args
 std_lua_cfunction checkboring_std_LuaCB = autofunction::generate(checkboring);
 
 // c function wrap
