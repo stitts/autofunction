@@ -1,7 +1,22 @@
 /**
  * Auto-generating Lua callback functions.
+ * Lua type  <->  C++ type:
+ *  number   <-> integer_type, floating_point_type
+ *  boolean  <-> bool
+ *  string   <-> const char*, std::string
+ *  userdata <-> T*
  *
- * Only works with int and double functions at the moment.
+ * Generate a function:
+ *  template<typename return_type, typename... arg_types>
+ *  autofunction::generate(L, std::function<return_type>(arg_types...))
+ *
+ * Generate a function with all optionals (defaults):
+ *  template<typename return_type, typename... arg_types>
+ *  autofunction::generate(L, std::function<return_type>(arg_types...), arg_types...)
+ *
+ * Generate a function with some optionals (defaults):
+ *  template<typename return_type, typename... arg_types>
+ *  autofunction::generate(L, std::function<return_type>(arg_types...), autofunction::noneType, ..., Tn tn, ...)
  *
  **/
 
@@ -27,6 +42,12 @@ struct noneType {};
 std::map<lua_State*, std::map<const std::type_index, const char*>> type_map;
 template<typename T>
 void register_type(lua_State* L, const char* identifier) { type_map[L][typeid(T)] = identifier; }
+
+// TODO: handle bad keys
+template<typename T>
+const char* check_identifier(lua_State* L) {
+  return type_map[L][typeid(T)];
+}
 
 
 /**
@@ -73,17 +94,9 @@ inline void get_type(lua_State* L, int index, std::string& val) { val = luaL_che
 inline void get_type(lua_State* L, int index, std::string& val, const std::string& optional) { val = luaL_optstring(L, index, optional.c_str()); }
 
 template<typename T>
-void get_type(lua_State* L, int index, T*& val) {
-  // this needs to be wrapped
-  const char* identifier = type_map[L][typeid(T)];
-  val = (T*)luaL_checkudata(L, index, identifier);
-}
+void get_type(lua_State* L, int index, T*& val) { val = (T*)luaL_checkudata(L, index, check_identifier<T>(L)); }
 template<typename T>
-void get_type(lua_State* L, int index, T*& val, const T* optional) {
-  // this needs to be wrapped
-  const char* identifier = type_map[L][typeid(T)];
-  val = (T*)optudata(L, index, identifier, optional);
-}
+void get_type(lua_State* L, int index, T*& val, const T* optional) { val = (T*)optudata(L, index, check_identifier<T>(L), optional); }
 
 
 /**
