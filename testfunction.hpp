@@ -7,6 +7,11 @@
 
 namespace testfunction {
 
+struct name {
+  const char* m_val;
+  name(const char* val) : m_val(val) {}
+};
+
 inline void print_stack(lua_State* L) {
   for (int i = 1; i <= lua_gettop(L); i++) {
     std::cerr << i << ": ";
@@ -22,6 +27,12 @@ inline void print_stack(lua_State* L) {
 }
 
 inline int push(lua_State*) { return 0; }
+
+template<typename... tail>
+int push(lua_State* L, const name& n, tail... ts) {
+  lua_getglobal(L, n.m_val);
+  return 1 + push(L, ts...);
+}
 
 template<typename head, typename... tail>
 int push(lua_State* L, head h, tail... ts) {
