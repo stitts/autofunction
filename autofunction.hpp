@@ -1,7 +1,22 @@
 /**
  * Auto-generating Lua callback functions.
+ * Lua type  <->  C++ type:
+ *  number   <-> integer_type, floating_point_type
+ *  boolean  <-> bool
+ *  string   <-> const char*, std::string
+ *  userdata <-> T*
  *
- * Only works with int and double functions at the moment.
+ * Generate a function:
+ *  template<typename return_type, typename... arg_types>
+ *  autofunction::generate(L, std::function<return_type>(arg_types...))
+ *
+ * Generate a function with all optionals (defaults):
+ *  template<typename return_type, typename... arg_types>
+ *  autofunction::generate(L, std::function<return_type>(arg_types...), arg_types...)
+ *
+ * Generate a function with some optionals (defaults):
+ *  template<typename return_type, typename... arg_types>
+ *  autofunction::generate(L, std::function<return_type>(arg_types...), autofunction::noneType, ..., Tn tn, ...)
  *
  **/
 
@@ -9,7 +24,9 @@
 #define AUTOFUNCTION_HPP_
 
 #include <functional>
+#include <map>
 #include <string>
+#include <typeindex>
 #include <lua.hpp>
 
 using std_lua_cfunction = std::function<int(lua_State*)>;
@@ -20,6 +37,20 @@ namespace autofunction {
 struct noneType {};
 
 /**
+ * Mapping type -> identifier@lua_State
+ **/
+std::map<lua_State*, std::map<const std::type_index, const char*>> type_map;
+template<typename T>
+void register_type(lua_State* L, const char* identifier) { type_map[L][typeid(T)] = identifier; }
+
+// TODO: handle bad keys
+template<typename T>
+const char* check_identifier(lua_State* L) {
+  return type_map[L][typeid(T)];
+}
+
+
+/**
  * Lua doesn't have these. (at least Lua 5.1)
  * TODO: check and #ifdef on lua version if 5.2 or 5.3 has this
  **/
@@ -28,9 +59,19 @@ inline bool checkboolean(lua_State* L, int stack_index) {
   return lua_toboolean(L, stack_index);
 }
 
+// if the stack index is nil return optional else return bool(stack_index)
+// TODO: this behavior may be off
 inline bool optboolean(lua_State* L, int stack_index, bool optional) {
   if (lua_type(L, stack_index) == LUA_TNIL) return optional;
   return lua_toboolean(L, stack_index);
+}
+
+// if the stack index is nil return optional else return checkudata(index)
+// this seems reasonable
+template <typename T>
+T optudata(lua_State* L, int stack_index, const char* identifier, const T* optional) {
+  if (lua_type(L, stack_index) == LUA_TNIL) return optional;
+  else return (T*)luaL_checkudata(L, stack_index, identifier);
 }
 
 
@@ -52,6 +93,11 @@ inline void get_type(lua_State* L, int index, const char*& val, const char* opti
 inline void get_type(lua_State* L, int index, std::string& val) { val = luaL_checkstring(L, index); }
 inline void get_type(lua_State* L, int index, std::string& val, const std::string& optional) { val = luaL_optstring(L, index, optional.c_str()); }
 
+template<typename T>
+void get_type(lua_State* L, int index, T*& val) { val = (T*)luaL_checkudata(L, index, check_identifier<T>(L)); }
+template<typename T>
+void get_type(lua_State* L, int index, T*& val, const T* optional) { val = (T*)optudata(L, index, check_identifier<T>(L), optional); }
+
 
 /**
  * Pushing to the stack
@@ -61,6 +107,8 @@ inline void push_type(lua_State* L, const floating_point_type& val) { lua_pushnu
 inline void push_type(lua_State* L, const bool& val) { lua_pushboolean(L, val); }
 inline void push_type(lua_State* L, const char* val) { lua_pushstring(L, val); }
 inline void push_type(lua_State* L, const std::string& val) { lua_pushstring(L, val.c_str()); }
+// this doesn't push a userdata with a type
+template <typename T> void push_type(lua_State* L, T* val) { lua_pushlightuserdata(L, (void*)val); }
 
 
 /**
