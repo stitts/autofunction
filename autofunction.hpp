@@ -34,20 +34,17 @@ using integer_type = int;
 using floating_point_type = double;
 
 namespace autofunction {
+/**
+ * The object type used to specify a required index when specifying
+ * default parameters.
+ **/
 struct noneType {};
+
 
 /**
  * Mapping type -> identifier@lua_State
  **/
-std::map<lua_State*, std::map<const std::type_index, const char*>> type_map;
-template<typename T>
-void register_type(lua_State* L, const char* identifier) { type_map[L][typeid(T)] = identifier; }
-
-// TODO: handle bad keys
-template<typename T>
-const char* check_identifier(lua_State* L) {
-  return type_map[L][typeid(T)];
-}
+using type_map = std::map<const std::type_index, std::string>;
 
 
 /**
@@ -69,7 +66,7 @@ inline bool optboolean(lua_State* L, int stack_index, bool optional) {
 // if the stack index is nil return optional else return checkudata(index)
 // this seems reasonable
 template <typename T>
-T optudata(lua_State* L, int stack_index, const char* identifier, const T* optional) {
+T * optudata(lua_State* L, int stack_index, const char* identifier, const T* optional) {
   if (lua_type(L, stack_index) == LUA_TNIL) return optional;
   else return (T*)luaL_checkudata(L, stack_index, identifier);
 }
@@ -78,25 +75,30 @@ T optudata(lua_State* L, int stack_index, const char* identifier, const T* optio
 /**
  * Grabbing from the stack. The resutl is stored in val
  **/
-inline void get_type(lua_State* L, int index, integer_type& val) { val = luaL_checkinteger(L, index); }
-inline void get_type(lua_State* L, int index, integer_type& val, integer_type optional) { val = luaL_optinteger(L, index, optional); }
+inline void get_type(lua_State* L, int index, integer_type& val, type_map * tm = nullptr)
+{ val = luaL_checkinteger(L, index); }
+inline void get_type(lua_State* L, int index, integer_type& val, integer_type optional, type_map * tm = nullptr)
+{ val = luaL_optinteger(L, index, optional); }
 
-inline void get_type(lua_State* L, int index, floating_point_type& val) { val = luaL_checknumber(L, index); }
-inline void get_type(lua_State* L, int index, floating_point_type& val, floating_point_type optional) { val = luaL_optnumber(L, index, optional); }
+inline void get_type(lua_State* L, int index, floating_point_type& val, type_map * tm = nullptr)
+{ val = luaL_checknumber(L, index); }
+inline void get_type(lua_State* L, int index, floating_point_type& val, floating_point_type optional, type_map * tm = nullptr) 
+{ val = luaL_optnumber(L, index, optional); }
 
-inline void get_type(lua_State* L, int index, bool& val) { val = checkboolean(L, index); }
-inline void get_type(lua_State* L, int index, bool& val, bool optional) { val = optboolean(L, index, optional); }
+inline void get_type(lua_State* L, int index, bool& val, type_map * tm = nullptr) { val = checkboolean(L, index); }
+inline void get_type(lua_State* L, int index, bool& val, bool optional, type_map * tm = nullptr) { val = optboolean(L, index, optional); }
 
-inline void get_type(lua_State* L, int index, const char*& val) { val = luaL_checkstring(L, index); }
-inline void get_type(lua_State* L, int index, const char*& val, const char* optional) { val = luaL_optstring(L, index, optional); }
+inline void get_type(lua_State* L, int index, const char*& val, type_map * tm = nullptr) { val = luaL_checkstring(L, index); }
+inline void get_type(lua_State* L, int index, const char*& val, const char* optional, type_map * tm = nullptr) { val = luaL_optstring(L, index, optional); }
 
-inline void get_type(lua_State* L, int index, std::string& val) { val = luaL_checkstring(L, index); }
-inline void get_type(lua_State* L, int index, std::string& val, const std::string& optional) { val = luaL_optstring(L, index, optional.c_str()); }
+inline void get_type(lua_State* L, int index, std::string& val, type_map * tm = nullptr) { val = luaL_checkstring(L, index); }
+inline void get_type(lua_State* L, int index, std::string& val, const std::string& optional, type_map * tm = nullptr) 
+{ val = luaL_optstring(L, index, optional.c_str()); }
 
 template<typename T>
-void get_type(lua_State* L, int index, T*& val) { val = (T*)luaL_checkudata(L, index, check_identifier<T>(L)); }
+void get_type(lua_State* L, int index, T*& val, type_map * tm) { val = (T*)luaL_checkudata(L, index, (*tm)[typeid(T)].c_str()); }
 template<typename T>
-void get_type(lua_State* L, int index, T*& val, const T* optional) { val = (T*)optudata(L, index, check_identifier<T>(L), optional); }
+void get_type(lua_State* L, int index, T*& val, const T* optional, type_map * tm) { val = (T*)optudata(L, index, (*tm)[typeid(T)].c_str(), optional); }
 
 
 /**
@@ -114,7 +116,7 @@ template <typename T> void push_type(lua_State* L, T* val) { lua_pushlightuserda
 /**
  * Handle the return type
  **/
-inline std_lua_cfunction generate(int, std::function<void(lua_State*)> f) {
+inline std_lua_cfunction generate(type_map &, int, std::function<void(lua_State*)> f) {
   auto _f = [f](lua_State* L) {
     f(L);
     return 0;
@@ -123,7 +125,7 @@ inline std_lua_cfunction generate(int, std::function<void(lua_State*)> f) {
 }
 
 template<typename return_type>
-std_lua_cfunction generate(int, std::function<return_type(lua_State*)> f) {
+std_lua_cfunction generate(type_map &, int, std::function<return_type(lua_State*)> f) {
   auto _f = [f](lua_State* L) {
     return_type val = f(L);
     push_type(L, val);
@@ -137,42 +139,42 @@ std_lua_cfunction generate(int, std::function<return_type(lua_State*)> f) {
  * Working though the arguments
  **/
 template<typename return_type, typename head, typename... tail>
-std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, head, tail...)>);
+std_lua_cfunction generate(type_map & tm, int arg_index, std::function<return_type(lua_State*, head, tail...)>);
 
 template<typename return_type, typename head, typename... tail, typename... opt_tail>
-std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, head, tail...)>, noneType, opt_tail... opt_ts);
+std_lua_cfunction generate(type_map & tm, int arg_index, std::function<return_type(lua_State*, head, tail...)>, noneType, opt_tail... opt_ts);
 
 template<typename return_type, typename head, typename... tail, typename... opt_tail>
-std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, head, tail...)>, head opt_h, opt_tail... opt_ts);
+std_lua_cfunction generate(type_map & tm, int arg_index, std::function<return_type(lua_State*, head, tail...)>, head opt_h, opt_tail... opt_ts);
 
 template<typename return_type, typename head, typename... tail>
-std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, head, tail...)> f) {
-  std::function<return_type(lua_State*, tail...)> _f = [f, arg_index](lua_State* L, tail... ts) {
+std_lua_cfunction generate(type_map & tm, int arg_index, std::function<return_type(lua_State*, head, tail...)> f) {
+  std::function<return_type(lua_State*, tail...)> _f = [f, arg_index, &tm](lua_State* L, tail... ts) {
     head val;
-    get_type(L, arg_index, val);
+    get_type(L, arg_index, val, &tm);
     return f(L, val, ts...);
   };
-  return generate(++arg_index, _f);
+  return generate(tm, ++arg_index, _f);
 }
 
 template<typename return_type, typename head, typename... tail, typename... opt_tail>
-std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, head, tail...)> f, noneType, opt_tail... opt_ts) {
-  std::function<return_type(lua_State*, tail...)> _f = [f, arg_index](lua_State* L, tail... ts) {
+std_lua_cfunction generate(type_map & tm, int arg_index, std::function<return_type(lua_State*, head, tail...)> f, noneType, opt_tail... opt_ts) {
+  std::function<return_type(lua_State*, tail...)> _f = [f, arg_index, &tm](lua_State* L, tail... ts) {
     head val;
-    get_type(L, arg_index, val);
+    get_type(L, arg_index, val, &tm);
     return f(L, val, ts...);
   };
-  return generate(++arg_index, _f, opt_ts...);
+  return generate(tm, ++arg_index, _f, opt_ts...);
 }
 
 template<typename return_type, typename head, typename... tail, typename... opt_tail>
-std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, head, tail...)> f, head opt_h, opt_tail... opt_ts) {
-  std::function<return_type(lua_State*, tail...)> _f = [f, arg_index, opt_h](lua_State* L, tail... ts) {
+std_lua_cfunction generate(type_map & tm, int arg_index, std::function<return_type(lua_State*, head, tail...)> f, head opt_h, opt_tail... opt_ts) {
+  std::function<return_type(lua_State*, tail...)> _f = [f, arg_index, opt_h, &tm](lua_State* L, tail... ts) {
     head val;
-    get_type(L, arg_index, val, opt_h);
+    get_type(L, arg_index, val, opt_h, &tm);
     return f(L, val, ts...);
   };
-  return generate(++arg_index, _f, opt_ts...);
+  return generate(tm, ++arg_index, _f, opt_ts...);
 }
 
 
@@ -180,30 +182,86 @@ std_lua_cfunction generate(int arg_index, std::function<return_type(lua_State*, 
  * Starting place
  **/
 template<typename return_type>
-std_lua_cfunction generate(std::function<return_type()> f) {
+std_lua_cfunction generate(type_map & tm, const std::function<return_type()> & f) {
   std::function<return_type(lua_State*)> _f = [f](lua_State*) {
     return f();
   };
 
-  return generate(1, _f);
+  return generate(tm, 1, _f);
 }
 
 template<typename return_type, typename head, typename... tail>
-std_lua_cfunction generate(std::function<return_type(head, tail...)> f) {
+std_lua_cfunction generate(type_map & tm, const std::function<return_type(head, tail...)> & f) {
   std::function<return_type(lua_State*, head, tail...)> _f = [f](lua_State*, head h, tail... ts) {
     return f(h, ts...);
   };
 
-  return generate(1, _f);
+  return generate(tm, 1, _f);
 }
 
 template<typename return_type, typename head, typename... tail, typename opt_head, typename... opt_tail>
-std_lua_cfunction generate(std::function<return_type(head, tail...)> f, opt_head opt_h, opt_tail... opt_ts) {
+std_lua_cfunction generate(type_map & tm, const std::function<return_type(head, tail...)> & f, const opt_head opt_h, const opt_tail... opt_ts) {
   std::function<return_type(lua_State*, head, tail...)> _f = [f](lua_State*, head h, tail... ts) {
     return f(h, ts...);
   };
 
-  return generate(1, _f, opt_h, opt_ts...);
+  return generate(tm, 1, _f, opt_h, opt_ts...);
 }
+
+/**
+ * callback generation via object
+ *
+ * any userdata that but first be registered:
+ * .register_type<T>(T_identifier)
+ **/
+class function_generator {
+private:
+  static int std_function_closure(lua_State * L) {
+    std_lua_cfunction * lcb = static_cast<std_lua_cfunction *>(lua_touserdata(L, lua_upvalueindex(1)));
+    return (*lcb)(L);
+  }
+
+  lua_State * m_L;
+  type_map m_type_map;
+
+  void push_function(std_lua_cfunction * lcb) {
+    lua_pushlightuserdata(m_L, (void*)lcb);
+    lua_pushcclosure(m_L, std_function_closure, 1);
+  }
+
+public:
+  function_generator(lua_State * L) : m_L(L) {}
+  
+  template <typename T>
+  void register_type(const char * identifier) {
+    if (identifier) {
+      m_type_map[typeid(T)] = identifier;
+    }
+  }
+
+  template <typename T>
+  const char * get_identifier() {
+    return m_type_map[typeid(T)].c_str();
+  }
+
+  template<typename return_type>
+  void push_function(const std::function<return_type()> & f) {
+    std_lua_cfunction * lcb = new std_lua_cfunction(std::move(generate(m_type_map, f)));
+    push_function(lcb);
+  }
+
+  template<typename return_type, typename head, typename... tail>
+  void push_function(const std::function<return_type(head, tail...)> & f) {
+    std_lua_cfunction * lcb = new std_lua_cfunction(std::move(generate(m_type_map, f)));
+    push_function(lcb);
+  }
+
+  template<typename return_type, typename head, typename... tail, typename opt_head, typename... opt_tail>
+  void push_function(const std::function<return_type(head, tail...)> & f, const opt_head opt_h, const opt_tail... opt_ts) {
+    std_lua_cfunction * lcb = new std_lua_cfunction(std::move(generate(m_type_map, f, opt_h, opt_ts...)));
+    push_function(lcb);
+  }
+};
+
 } // namespace autofunction
 #endif
