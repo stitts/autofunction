@@ -3,16 +3,21 @@ Optionally a set of defaults can be passed after the function: if one is passed 
 if a argument is to be required an instance of autofunction::noneType should be used.
 
 Example:
+  
+    lua_State * L = ...;
 
     function<double(int, double, int)> axpb = [](int a, double x, int b) {
       return a * x + b;
     };
 
-    // these could be combined
-    apb_stdLuaCB = autofunction::generate(axpb, autofunction::noneType(), 5.9, 3);
-    int apb_stdLuaCB(lua_State* L) {
-      return apb_stdLuaCB(L);
-    }
+    autofunction::function_generator fg(L);
+
+    fg.push_function(axpb);
+    lua_setglobal(L, "axpb");
+
+    fg.push_function(axpb, autofunction::noneType(), 3.1, 4);
+    lua_setglobal*L, "axpb_with_defaults");
+
 
 
 There is a example provided that will run some tests and optional drop you into a Lua prompt (with -debug).
@@ -43,8 +48,7 @@ Run with `rlwrap` if you want arrows and delete.
 
 
 Why?
-To show you can.
+😒
 
 Limitations:
 * Cannot use function pointers (just write a different `generate`)
-* Need to both create the std::function callback and the C function callback (macro?)
