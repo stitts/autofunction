@@ -34,22 +34,17 @@ using integer_type = int;
 using floating_point_type = double;
 
 namespace autofunction {
+/**
+ * The object type used to specify a required index when specifying
+ * default parameters.
+ **/
 struct noneType {};
+
 
 /**
  * Mapping type -> identifier@lua_State
  **/
 using type_map = std::map<const std::type_index, std::string>;
-/*
-template<typename T>
-void register_type(lua_State* L, const std::string && identifier) { type_map[L][typeid(T)] = identifier; }
-// TODO: handle bad keys
-template<typename T>
-const char* check_identifier(lua_State* L) {
-  return type_map[L][typeid(T)];
-}
-*/
-
 
 
 /**
@@ -215,6 +210,9 @@ std_lua_cfunction generate(type_map & tm, const std::function<return_type(head, 
 
 /**
  * callback generation via object
+ *
+ * any userdata that but first be registered:
+ * .register_type<T>(T_identifier)
  **/
 class function_generator {
 private:
