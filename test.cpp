@@ -71,33 +71,15 @@ function<bool(boring*)> checkboring = [](boring* b) {
  *   mixed        - X
  **/
 
-// double returns, int/double args, all requireds args
-std_lua_cfunction axpb_std_LuaCB = autofunction::generate(axpb);
-
-// int returns, concurrent optionals and requireds args
-std_lua_cfunction apb_std_LuaCB = autofunction::generate(apb, autofunction::noneType(), 5);
-
-// bool return, bool and const char* args
-std_lua_cfunction is_hello_std_LuaCB = autofunction::generate(is_hello, "ello");
-
-// std::string returns, std::sting args, all optionals args
-string stdstr = "just a std::string";
-std_lua_cfunction make_string_std_LuaCB = autofunction::generate(make_string, 6, 9.22, true, "just a cstr", stdstr);
-
-// const char* returns, void (no) args
-std_lua_cfunction filename_std_LuaCB = autofunction::generate(filename);
-
-// userdata args
-std_lua_cfunction checkboring_std_LuaCB = autofunction::generate(checkboring);
-
 // c function wrap
+/*
 int axpb_LuaCB(lua_State* L) { return axpb_std_LuaCB(L); }
 int apb_LuaCB(lua_State* L) { return apb_std_LuaCB(L); }
 int make_string_LuaCB(lua_State* L) { return make_string_std_LuaCB(L); }
 int is_hello_LuaCB(lua_State* L) { return is_hello_std_LuaCB(L); }
 int filename_LuaCB(lua_State* L) { return filename_std_LuaCB(L); }
 int checkboring_LuaCB(lua_State* L) { return checkboring_std_LuaCB(L); }
-
+*/
 /**
  * There functions wrap testing output. One takes a lua_cfunction and will push this
  * and set the global path given 'path'. The other uses the function at 'path'.
@@ -123,6 +105,9 @@ int test(lua_State* L, int test_number, int(*luacb)(lua_State*), const char* pat
 int main(int argc, const char** argv) {
   lua_State* L = luaL_newstate();
   luaL_openlibs(L);
+
+  autofunction::function_generator fg(L);
+
   int test_count = 1;
   int error_count = 0;
   bool debug = false;
@@ -130,31 +115,64 @@ int main(int argc, const char** argv) {
     if (strcmp(argv[i], "-debug") == 0) debug = true;
   }
 
+
   // using apb
-  error_count += test(L, test_count++, apb_LuaCB, "apb", 5, 0);
-  error_count += test(L, test_count++, "apb", 10, 1, 9);
+  // int returns, concurrent optionals and requireds args
+  const char * name = "apb";
+  fg.push_function(apb, autofunction::noneType(), 5);
+  lua_setglobal(L, name);
+  error_count += test(L, test_count++, name, 5, 0);
+  error_count += test(L, test_count++, name, 10, 1, 9);
+
 
   // using axpb
-  error_count += test(L, test_count++, axpb_LuaCB, "axpb", 17.2, 4, 5.3, -4);
+  // double returns, int/double args, all requireds args
+  name = "axpb";
+  fg.push_function(axpb);
+  lua_setglobal(L, name);
+  error_count += test(L, test_count++, name, 17.2, 4, 5.3, -4);
+
 
   // using is_hello
-  error_count += test(L, test_count++, is_hello_LuaCB, "is_hello", false);
-  error_count += test(L, test_count++, "is_hello", true, "hello");
+  // bool return, bool and const char* args
+	name = "is_hello";
+	fg.push_function(is_hello, "ello");
+	lua_setglobal(L, name);
+  error_count += test(L, test_count++, name, false);
+  error_count += test(L, test_count++, name, true, "hello");
+
 
   // using make_string
+  // std::string returns, std::sting args, all optionals args
+	name = "make_string";
+  string stdstr = "just a std::string";
+	fg.push_function(make_string, 6, 9.22, true, "just a cstr", stdstr);
+	lua_setglobal(L, name);
+
   string expected = "1 1.1 1 aaa bbb";
   string bbb = "bbb";
-  error_count += test(L, test_count++, make_string_LuaCB, "make_string", expected, 1, 1.1, true, "aaa", bbb);
+  error_count += test(L, test_count++, name, expected, 1, 1.1, true, "aaa", bbb);
   expected = "6 9.22 0 just a cstr just a std::string";
-  error_count += test(L, test_count++, "make_string", expected);
+  error_count += test(L, test_count++, name, expected);
+
 
   // using filename
-  error_count += test(L, test_count++, filename_LuaCB, "filename", __FILE__);
+  // const char* returns, void (no) args
+	name = "filename";
+	fg.push_function(filename);
+	lua_setglobal(L, name);
+  error_count += test(L, test_count++, name, __FILE__);
+
 
   // using checkboring
+  // userdata args
+  name = "checkboring";
+	fg.push_function(checkboring);
+	lua_setglobal(L, name);
+	
   luaL_newmetatable(L, "boring");
   lua_pop(L, 1);
-  autofunction::register_type<boring>(L, "boring");
+	fg.register_type<boring>("boring");
   new(lua_newuserdata(L, sizeof(boring))) boring(1);
   luaL_getmetatable(L, "boring");
   lua_setmetatable(L, -2);
@@ -163,8 +181,9 @@ int main(int argc, const char** argv) {
   luaL_getmetatable(L, "boring");
   lua_setmetatable(L, -2);
   lua_setglobal(L, "boring_49");
-  error_count += test(L, test_count++, checkboring_LuaCB, "checkboring", false, testfunction::name("boring_1"));
-  error_count += test(L, test_count++, checkboring_LuaCB, "checkboring", true, testfunction::name("boring_49"));
+  error_count += test(L, test_count++, name, false, testfunction::name("boring_1"));
+  error_count += test(L, test_count++, name, true, testfunction::name("boring_49"));
+
 
   // if debug then drop into a prompt
   while (debug) {
@@ -177,6 +196,7 @@ int main(int argc, const char** argv) {
       lua_pop(L, 1);
     }
   }
+
 
   lua_close(L);
   return error_count;
