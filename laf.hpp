@@ -259,6 +259,9 @@ private:
 
 public:
   function_generator(lua_State * L) : m_L(L) {}
+
+  lua_State * getLuaState() { return m_L; }
+  type_map * getTypeMap() { return &m_type_map; }
   
   template <typename T>
   void register_type(const char * identifier) {

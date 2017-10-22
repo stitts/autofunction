@@ -49,6 +49,5 @@ Run with `rlwrap` if you want arrows and delete.
 
 Still need to do:
 
-- Tests for void and userdata returns
+- Tests for userdata returns
 - Tests for function pointers of () -> a, and (optionals) -> a
-- Support for function of (...) -> void

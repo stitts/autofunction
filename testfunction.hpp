@@ -52,7 +52,8 @@ template<typename T>
 bool eq(T lhs, T rhs) { return lhs == rhs; }
 
 template<typename result, typename... args>
-int check(lua_State * L, const char * global_name, result expected, args... as) {
+int check(laf::function_generator & fg, const char * global_name, result expected, args... as) {
+  lua_State * L = fg.getLuaState();
   lua_getglobal(L, global_name);
   if (lua_type(L, -1) != LUA_TFUNCTION) {
     std::cerr << "error: '" << global_name << "' is not a function." << std::endl;
@@ -73,7 +74,7 @@ int check(lua_State * L, const char * global_name, result expected, args... as) 
 
   if (!is_void_return) {
     result actual;
-    laf::get_type(L, lua_gettop(L), actual);
+    laf::get_type(L, lua_gettop(L), actual, fg.getTypeMap());
     lua_pop(L, 1);
     if (!eq(expected, actual)) {
       std::cerr << "error: actual result differs from expected: " << actual << " != " << expected << std::endl;

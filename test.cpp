@@ -19,9 +19,9 @@ struct boring {
  * and set the global path given 'path'. The other uses the function at 'path'.
  **/
 template<typename expected, typename... args>
-int test(lua_State * L, int test_number, const char * path, expected e, args... as) {
+int test(laf::function_generator & fg, int test_number, const char * path, expected e, args... as) {
   cout << "test " << test_number <<  ": ";
-  if (testfunction::check(L, path, e, as...) == 0) {
+  if (testfunction::check(fg, path, e, as...) == 0) {
     cout << "pass" << endl << endl;
     return 0;
   }
@@ -31,8 +31,8 @@ int test(lua_State * L, int test_number, const char * path, expected e, args... 
 
 
 template<typename... args>
-int testvoid(lua_State * L, int test_number, const char * path, args... as) {
-  return test(L, test_number, path, laf::noneType(), as...);
+int testvoid(laf::function_generator & fg, int test_number, const char * path, args... as) {
+  return test(fg, test_number, path, laf::noneType(), as...);
 }
 
 
@@ -68,15 +68,15 @@ int testvoid(lua_State * L, int test_number, const char * path, args... as) {
 
 int global_int;
 
-void setGlobalInt(int val) {
-  global_int = val;
-}
+void setGlobalInt(int val) { global_int = val; }
 
+bool isEven(int num) { return num % 2 == 0; }
 
-bool isEven(int num) {
-  return num % 2 == 0;
-}
+bool alwaysTrue() { return true; }
 
+boring global_boring(11);
+
+boring * getGlobalBoring() { return &global_boring; }
 
 int main(int argc, const char ** argv) {
   lua_State * L = luaL_newstate();
@@ -100,8 +100,8 @@ int main(int argc, const char ** argv) {
 
   fg.push_function(apb, laf::noneType(), 5);
   lua_setglobal(L, name);
-  error_count += test(L, test_count++, name, 5, 0);
-  error_count += test(L, test_count++, name, 10, 1, 9);
+  error_count += test(fg, test_count++, name, 5, 0);
+  error_count += test(fg, test_count++, name, 10, 1, 9);
 
 
   // double returns, int/double args, all requireds args
@@ -112,7 +112,7 @@ int main(int argc, const char ** argv) {
 
   fg.push_function(axpb);
   lua_setglobal(L, name);
-  error_count += test(L, test_count++, name, 17.2, 4, 5.3, -4);
+  error_count += test(fg, test_count++, name, 17.2, 4, 5.3, -4);
 
 
   // bool return, bool and const char * args
@@ -124,8 +124,8 @@ int main(int argc, const char ** argv) {
 
 	fg.push_function(is_hello, "ello");
 	lua_setglobal(L, name);
-  error_count += test(L, test_count++, name, false);
-  error_count += test(L, test_count++, name, true, "hello");
+  error_count += test(fg, test_count++, name, false);
+  error_count += test(fg, test_count++, name, true, "hello");
 
 
   // using make_string
@@ -145,9 +145,9 @@ int main(int argc, const char ** argv) {
 
   string expected = "1 1.1 1 aaa bbb";
   string bbb = "bbb";
-  error_count += test(L, test_count++, name, expected, 1, 1.1, true, "aaa", bbb);
+  error_count += test(fg, test_count++, name, expected, 1, 1.1, true, "aaa", bbb);
   expected = "6 9.22 0 just a cstr just a std::string";
-  error_count += test(L, test_count++, name, expected);
+  error_count += test(fg, test_count++, name, expected);
 
 
   // const char * returns, void (no) args
@@ -158,7 +158,7 @@ int main(int argc, const char ** argv) {
 
 	fg.push_function(filename);
 	lua_setglobal(L, name);
-  error_count += test(L, test_count++, name, __FILE__);
+  error_count += test(fg, test_count++, name, __FILE__);
 
 
   // using checkboring
@@ -182,8 +182,8 @@ int main(int argc, const char ** argv) {
   luaL_getmetatable(L, "boring");
   lua_setmetatable(L, -2);
   lua_setglobal(L, "boring_49");
-  error_count += test(L, test_count++, name, false, testfunction::name("boring_1"));
-  error_count += test(L, test_count++, name, true, testfunction::name("boring_49"));
+  error_count += test(fg, test_count++, name, false, testfunction::name("boring_1"));
+  error_count += test(fg, test_count++, name, true, testfunction::name("boring_49"));
 
   // function pointer tests
 
@@ -191,18 +191,28 @@ int main(int argc, const char ** argv) {
   name = "isEven";
   fg.push_function(isEven);
   lua_setglobal(L, name);
-  error_count += test(L, test_count++, name, true, 6);
-  error_count += test(L, test_count++, name, false, 7);
+  error_count += test(fg, test_count++, name, true, 6);
+  error_count += test(fg, test_count++, name, false, 7);
 
   name = "setGlobalInt";
   int new_gi_val = 6;
   fg.push_function(setGlobalInt);
   lua_setglobal(L, name);
-  error_count += testvoid(L, test_count++, name, new_gi_val);
+  error_count += testvoid(fg, test_count++, name, new_gi_val);
   if (global_int != new_gi_val) {
     printf("error: setGlobalInt did not update global as expected: %d != %d\n", global_int, new_gi_val);
     error_count += 1;
   }
+
+  name = "alwaysTrue";
+  fg.push_function(alwaysTrue);
+  lua_setglobal(L, name);
+  error_count += test(fg, test_count++, name, true);
+
+  name = "getGlobalBoring";
+  fg.push_function(getGlobalBoring);
+  lua_setglobal(L, name);
+  error_count += test(fg, test_count++, name, &global_boring);
 
   if (error_count == 0) {
     printf("all passed!\n");
