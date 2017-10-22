@@ -1,6 +1,6 @@
 Automatic generation of Lua callbacks using modern C++ (lambdas, variadic templates): header only.
 Optionally a set of defaults can be passed after the function: if one is passed all must be passed; 
-if a argument is to be required an instance of autofunction::noneType should be used.
+if a argument is to be required an instance of laf::noneType should be used.
 
 Example:
   
@@ -10,12 +10,12 @@ Example:
       return a * x + b;
     };
 
-    autofunction::function_generator fg(L);
+    laf::function_generator fg(L);
 
     fg.push_function(axpb);
     lua_setglobal(L, "axpb");
 
-    fg.push_function(axpb, autofunction::noneType(), 3.1, 4);
+    fg.push_function(axpb, laf::noneType(), 3.1, 4);
     lua_setglobal*L, "axpb_with_defaults");
 
 

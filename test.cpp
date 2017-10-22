@@ -30,11 +30,17 @@ int test(lua_State * L, int test_number, const char * path, expected e, args... 
 }
 
 
+template<typename... args>
+int testvoid(lua_State * L, int test_number, const char * path, args... as) {
+  return test(L, test_number, path, laf::noneType(), as...);
+}
+
+
 /**
  * What's tested:
- *  type             - x
- *  std::function    - x
- *  function pointer - x
+ *  type             - X
+ *  std::function    - X
+ *  function pointer - X
  *
  *  return types  -
  *   double       - X
@@ -43,7 +49,7 @@ int test(lua_State * L, int test_number, const char * path, expected e, args... 
  *   const char * - X
  *   std::string  - X
  *   userdata
- *   void         
+ *   void         - X
  *
  *  args:         - X
  *   double       - X
@@ -59,6 +65,12 @@ int test(lua_State * L, int test_number, const char * path, expected e, args... 
  *   optional     - X
  *   mixed        - X
  **/
+
+int global_int;
+
+void setGlobalInt(int val) {
+  global_int = val;
+}
 
 
 bool isEven(int num) {
@@ -182,6 +194,15 @@ int main(int argc, const char ** argv) {
   error_count += test(L, test_count++, name, true, 6);
   error_count += test(L, test_count++, name, false, 7);
 
+  name = "setGlobalInt";
+  int new_gi_val = 6;
+  fg.push_function(setGlobalInt);
+  lua_setglobal(L, name);
+  error_count += testvoid(L, test_count++, name, new_gi_val);
+  if (global_int != new_gi_val) {
+    printf("error: setGlobalInt did not update global as expected: %d != %d\n", global_int, new_gi_val);
+    error_count += 1;
+  }
 
   if (error_count == 0) {
     printf("all passed!\n");

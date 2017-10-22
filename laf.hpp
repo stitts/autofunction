@@ -8,15 +8,15 @@
  *
  * Generate a function:
  *  template<typename return_type, typename... arg_types>
- *  autofunction::generate(L, std::function<return_type>(arg_types...))
+ *  laf::generate(L, std::function<return_type>(arg_types...))
  *
  * Generate a function with all optionals (defaults):
  *  template<typename return_type, typename... arg_types>
- *  autofunction::generate(L, std::function<return_type>(arg_types...), arg_types...)
+ *  laf::generate(L, std::function<return_type>(arg_types...), arg_types...)
  *
  * Generate a function with some optionals (defaults):
  *  template<typename return_type, typename... arg_types>
- *  autofunction::generate(L, std::function<return_type>(arg_types...), autofunction::noneType, ..., Tn tn, ...)
+ *  laf::generate(L, std::function<return_type>(arg_types...), laf::noneType, ..., Tn tn, ...)
  *
  **/
 
@@ -239,8 +239,8 @@ std_lua_cfunction generate(type_map & tm, return_type(*f)(head, tail...), const 
 /**
  * callback generation via object
  *
- * any userdata that but first be registered:
- * .register_type<T>(T_identifier)
+ * any userdata must first be registered:
+ * register_type<T>(T_identifier)
  **/
 class function_generator {
 private:
