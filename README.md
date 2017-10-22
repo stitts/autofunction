@@ -34,10 +34,10 @@ Run with `rlwrap` if you want arrows and delete.
     pass
 
     ...
-
-    test 10: calling 'checkboring' with 1 argument(s)
-    0x7fc56a406858 contains: 1
+    test 12: calling 'isEven' with 1 argument(s)
     pass
+
+    all passed!
     lua> print(apb(1))
     6
     lua> print(apb(5,9))
@@ -47,8 +47,8 @@ Run with `rlwrap` if you want arrows and delete.
     lua> quit
 
 
-Why?
-😒
+Still need to do:
 
-Limitations:
-* Cannot use function pointers (just write a different `generate`)
+- Tests for void and userdata returns
+- Tests for function pointers of () -> a, and (optionals) -> a
+- Support for function of (...) -> void

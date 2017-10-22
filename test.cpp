@@ -3,14 +3,14 @@
 #include <sstream>
 #include <string>
 
-#include "autofunction.hpp"
+#include "laf.hpp"
 #include "testfunction.hpp"
 
 using namespace std;
 
 struct boring {
   bool state;
-  boring(int32_t number) { state = number % 7 == 0; }
+  boring(int number) { state = number % 7 == 0; }
   bool is_boring() { return state; }
 };
 
@@ -19,7 +19,7 @@ struct boring {
  * and set the global path given 'path'. The other uses the function at 'path'.
  **/
 template<typename expected, typename... args>
-int test(lua_State* L, int test_number, const char* path, expected e, args... as) {
+int test(lua_State * L, int test_number, const char * path, expected e, args... as) {
   cout << "test " << test_number <<  ": ";
   if (testfunction::check(L, path, e, as...) == 0) {
     cout << "pass" << endl << endl;
@@ -31,32 +31,43 @@ int test(lua_State* L, int test_number, const char* path, expected e, args... as
 
 
 /**
- * Generate the std::function lua wrappers and the c function wrappers.
- * TODO: do this in one step. macro?
- *
  * What's tested:
+ *  type             - x
+ *  std::function    - x
+ *  function pointer - x
+ *
  *  return types  -
  *   double       - X
  *   int          - X
  *   bool         - X
- *   const char*  - X
+ *   const char * - X
  *   std::string  - X
  *   userdata
+ *   void         
+ *
  *  args:         - X
  *   double       - X
  *   int          - X
  *   bool         - X
- *   const char*  - X
+ *   const char * - X
  *   std::string  - X
  *   void (none)  - X
- *   userdata*    - X
+ *   userdata *   - X
+ *
  *  arg list kind - X
  *   required     - X
  *   optional     - X
  *   mixed        - X
  **/
-int main(int argc, const char** argv) {
-  lua_State* L = luaL_newstate();
+
+
+bool isEven(int num) {
+  return num % 2 == 0;
+}
+
+
+int main(int argc, const char ** argv) {
+  lua_State * L = luaL_newstate();
   luaL_openlibs(L);
 
   int test_count = 1;
@@ -65,7 +76,9 @@ int main(int argc, const char** argv) {
   for (int i = 0; i < argc; i++) {
     if (strcmp(argv[i], "-debug") == 0) debug = true;
   }
-  autofunction::function_generator fg(L);
+  laf::function_generator fg(L);
+
+  // std::function tests
 
   // int returns, concurrent optionals and requireds args
   const char * name = "apb";
@@ -73,7 +86,7 @@ int main(int argc, const char** argv) {
 		return a + b;
 	};
 
-  fg.push_function(apb, autofunction::noneType(), 5);
+  fg.push_function(apb, laf::noneType(), 5);
   lua_setglobal(L, name);
   error_count += test(L, test_count++, name, 5, 0);
   error_count += test(L, test_count++, name, 10, 1, 9);
@@ -90,9 +103,9 @@ int main(int argc, const char** argv) {
   error_count += test(L, test_count++, name, 17.2, 4, 5.3, -4);
 
 
-  // bool return, bool and const char* args
+  // bool return, bool and const char * args
 	name = "is_hello";
-	function<bool(const char*)> is_hello = [](const char* s) {
+	function<bool(const char *)> is_hello = [](const char * s) {
 		printf("got: %s\n", s);
 		return strcmp(s, "hello") == 0;
 	};
@@ -106,8 +119,8 @@ int main(int argc, const char** argv) {
   // using make_string
   // std::string returns, std::sting args, all optionals args
 	name = "make_string";
-	function<string(int, double, bool, const char*, string)> make_string =
-	[](int a, double b, bool c, const char* d, string e) {
+	function<string(int, double, bool, const char *, string)> make_string =
+	[](int a, double b, bool c, const char * d, string e) {
 		stringstream s;
 		s << a << " " << b << " " << c << " " << d << " " << e;
 		cout << "generated: '" << s.str() << "'" << endl;
@@ -125,9 +138,9 @@ int main(int argc, const char** argv) {
   error_count += test(L, test_count++, name, expected);
 
 
-  // const char* returns, void (no) args
+  // const char * returns, void (no) args
 	name = "filename";
-	function<const char*()> filename = []() {
+	function<const char *()> filename = []() {
 		return __FILE__;
 	};
 
@@ -139,8 +152,8 @@ int main(int argc, const char** argv) {
   // using checkboring
   // userdata args
   name = "checkboring";
-	function<bool(boring*)> checkboring = [](boring* b) {
-		printf("%p contains: %d\n", (void*)b, b->state);
+	function<bool(boring *)> checkboring = [](boring * b) {
+		printf("%p contains: %d\n", (void *)b, b->state);
 		return b->is_boring();
 	};
 	fg.push_function(checkboring);
@@ -160,6 +173,22 @@ int main(int argc, const char** argv) {
   error_count += test(L, test_count++, name, false, testfunction::name("boring_1"));
   error_count += test(L, test_count++, name, true, testfunction::name("boring_49"));
 
+  // function pointer tests
+
+  // using isEven
+  name = "isEven";
+  fg.push_function(isEven);
+  lua_setglobal(L, name);
+  error_count += test(L, test_count++, name, true, 6);
+  error_count += test(L, test_count++, name, false, 7);
+
+
+  if (error_count == 0) {
+    printf("all passed!\n");
+  }
+  else {
+    printf("%d tests failed\n", error_count);
+  }
 
   // if debug then drop into a prompt
   while (debug) {

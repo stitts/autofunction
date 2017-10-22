@@ -3,16 +3,16 @@
 
 #include <iostream>
 #include <lua.hpp>
-#include "autofunction.hpp"
+#include "laf.hpp"
 
 namespace testfunction {
 
 struct name {
-  const char* m_val;
-  name(const char* val) : m_val(val) {}
+  const char * m_val;
+  name(const char * val) : m_val(val) {}
 };
 
-inline void print_stack(lua_State* L) {
+inline void print_stack(lua_State * L) {
   for (int i = 1; i <= lua_gettop(L); i++) {
     std::cerr << i << ": ";
     switch (lua_type(L, i)) {
@@ -26,26 +26,26 @@ inline void print_stack(lua_State* L) {
   }
 }
 
-inline int push(lua_State*) { return 0; }
+inline int push(lua_State *) { return 0; }
 
 template<typename... tail>
-int push(lua_State* L, const name& n, tail... ts) {
+int push(lua_State * L, const name & n, tail... ts) {
   lua_getglobal(L, n.m_val);
   return 1 + push(L, ts...);
 }
 
 template<typename head, typename... tail>
-int push(lua_State* L, head h, tail... ts) {
-  autofunction::push_type(L, h);
+int push(lua_State * L, head h, tail... ts) {
+  laf::push_type(L, h);
   return 1 + push(L, ts...);
 }
 
-bool eq(const char* lhs, const char* rhs) { return strcmp(lhs, rhs) == 0; }
+bool eq(const char * lhs, const char * rhs) { return strcmp(lhs, rhs) == 0; }
 template<typename T>
 bool eq(T lhs, T rhs) { return lhs == rhs; }
 
 template<typename result, typename... args>
-int check(lua_State* L, const char* global_name, result expected, args... as) {
+int check(lua_State * L, const char * global_name, result expected, args... as) {
   lua_getglobal(L, global_name);
   if (lua_type(L, -1) != LUA_TFUNCTION) {
     std::cerr << "error: '" << global_name << "' is not a function." << std::endl;
@@ -62,7 +62,7 @@ int check(lua_State* L, const char* global_name, result expected, args... as) {
   }
 
   result actual;
-  autofunction::get_type(L, lua_gettop(L), actual);
+  laf::get_type(L, lua_gettop(L), actual);
   lua_pop(L, 1);
   if (!eq(expected,actual)) {
     std::cerr << "error: actual result differs from expected: " << actual << " != " << expected << std::endl;
