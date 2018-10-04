@@ -1,53 +1,22 @@
-Automatic generation of Lua callbacks using modern C++ (lambdas, variadic templates): header only.
-Optionally a set of defaults can be passed after the function: if one is passed all must be passed; 
-if a argument is to be required an instance of laf::noneType should be used.
+# Automatically generate Lua callbacks
 
 Example:
-  
-    lua_State * L = ...;
+    #include <iostream>
+    #include <lua.hpp>
+    #include "laf.hpp"
 
-    function<double(int, double, int)> axpb = [](int a, double x, int b) {
-      return a * x + b;
-    };
+    using namespace std;
 
-    laf::function_generator fg(L);
+    int main() {
+      lua_State * L = luaL_newstate();
+      luaL_openlibs(L);
 
-    fg.push_function(axpb);
-    lua_setglobal(L, "axpb");
+      int a = 5;
+      laf::push_function(L, [a](int b) { cout << "adding " << a << " to " << b; return a + b; });
+      lua_setglobal(L, "add_5");
+      assert(luaL_dostring(L, "return add_5(3)") == 0);
 
-    fg.push_function(axpb, laf::noneType(), 3.1, 4);
-    lua_setglobal*L, "axpb_with_defaults");
+      cout << ", the result is " << lua_tonumber(L, -1) << endl;
 
-
-
-There is a example provided that will run some tests and optional drop you into a Lua prompt (with -debug).
-Run with `rlwrap` if you want arrows and delete.
-
-    rlwrap ./test -debug
-    test 1: calling 'apb' with 1 argument(s)
-    pass
-
-    test 2: calling 'apb' with 2 argument(s)
-    pass
-
-    test 3: calling 'axpb' with 3 argument(s)
-    pass
-
-    ...
-    test 12: calling 'isEven' with 1 argument(s)
-    pass
-
-    all passed!
-    lua> print(apb(1))
-    6
-    lua> print(apb(5,9))
-    14
-    lua> print(axpb(2, .7, 8))
-    9.4
-    lua> quit
-
-
-Still need to do:
-
-- Tests for userdata returns
-- Tests for function pointers of () -> a, and (optionals) -> a
+      return 0;
+    }

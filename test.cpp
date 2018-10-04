@@ -1,238 +1,107 @@
 #include <iostream>
 #include <functional>
-#include <sstream>
 #include <string>
 
 #include "laf.hpp"
-#include "testfunction.hpp"
 
 using namespace std;
 
-struct boring {
-  bool state;
-  boring(int number) { state = number % 7 == 0; }
-  bool is_boring() { return state; }
-};
-
-/**
- * There functions wrap testing output. One takes a lua_cfunction and will push this
- * and set the global path given 'path'. The other uses the function at 'path'.
- **/
-template<typename expected, typename... args>
-int test(laf::function_generator & fg, int test_number, const char * path, expected e, args... as) {
-  cout << "test " << test_number <<  ": ";
-  if (testfunction::check(fg, path, e, as...) == 0) {
-    cout << "pass" << endl << endl;
-    return 0;
-  }
-  cout << "fail" << endl << endl;
-  return 1;
-}
-
-
-template<typename... args>
-int testvoid(laf::function_generator & fg, int test_number, const char * path, args... as) {
-  return test(fg, test_number, path, laf::noneType(), as...);
-}
-
-
 /**
  * What's tested:
- *  type             - X
+ *  lambda           - X
  *  std::function    - X
  *  function pointer - X
+ *  member fun ptr   - X
  *
  *  return types  -
  *   double       - X
  *   int          - X
- *   bool         - X
+ *   bool         - 
  *   const char * - X
  *   std::string  - X
- *   userdata
  *   void         - X
  *
  *  args:         - X
  *   double       - X
  *   int          - X
- *   bool         - X
+ *   bool         - 
  *   const char * - X
  *   std::string  - X
- *   void (none)  - X
+ *   void (none)  -
  *   userdata *   - X
- *
- *  arg list kind - X
- *   required     - X
- *   optional     - X
- *   mixed        - X
  **/
 
-int global_int;
+struct A {
+  int val;
+  A(int _val) : val(_val) {}
+  int getVal() { return val; }
+};
 
-void setGlobalInt(int val) { global_int = val; }
+const char * fun_ptr_cstr_id(const char * a) {
+  return a;
+}
 
-bool isEven(int num) { return num % 2 == 0; }
+int error_count = 0;
+int test_count = 0;
 
-bool alwaysTrue() { return true; }
+void test(lua_State * L, const char * lua_statement) {
+  test_count++;
+  std::cout << "starting test " << test_count << ": " << lua_statement << std::endl;
+  if (luaL_dostring(L, lua_statement) != 0) {
+    std::cout << lua_tostring(L, -1) << std::endl;
+    lua_pop(L, 1);
+    std::cout << "test failed" << std::endl << std::endl;
+    error_count++;
+    return;
+  }
+  std::cout << "test passed" << std::endl << std::endl;
+}
 
-boring global_boring(11);
-
-boring * getGlobalBoring() { return &global_boring; }
-
-int main(int argc, const char ** argv) {
+int main() {
   lua_State * L = luaL_newstate();
   luaL_openlibs(L);
 
-  int test_count = 1;
-  int error_count = 0;
-  bool debug = false;
-  for (int i = 0; i < argc; i++) {
-    if (strcmp(argv[i], "-debug") == 0) debug = true;
-  }
-  laf::function_generator fg(L);
-
-  // std::function tests
-
-  // int returns, concurrent optionals and requireds args
-  const char * name = "apb";
-	function<int(int, int)> apb = [](int a, int b) {
-		return a + b;
+  // test 1
+  std::function<int(int, int)> apb = [](int a, int b) {
+    return a + b;
 	};
+  laf::push_function(L, apb);
+  lua_setglobal(L, "apb");
+  test(L, "assert(apb(5, 10) == 15)");
 
-  fg.push_function(apb, laf::noneType(), 5);
-  lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, 5, 0);
-  error_count += test(fg, test_count++, name, 10, 1, 9);
-
-
-  // double returns, int/double args, all requireds args
-  name = "axpb";
-	function<double(int, double, int)> axpb = [](int a, double x, int b) {
-		return a * x + b;
-	};
-
-  fg.push_function(axpb);
-  lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, 17.2, 4, 5.3, -4);
+  // test 2
+  double t2_val = 2;
+  laf::push_function(L, [t2_val](int a, double x, int b) { return a * x + b + t2_val; });
+  lua_setglobal(L, "axpbpv");
+  test(L, "assert(axpbpv(4, 3, 8) == 22)");
 
 
-  // bool return, bool and const char * args
-	name = "is_hello";
-	function<bool(const char *)> is_hello = [](const char * s) {
-		printf("got: %s\n", s);
-		return strcmp(s, "hello") == 0;
-	};
+  // test 3
+  laf::push_function(L, [](int a, double b) { std::cout << a << " " << b << std::endl; });
+  lua_setglobal(L, "print_a_b");
+  test(L, "print_a_b(4, 3.14)");
 
-	fg.push_function(is_hello, "ello");
-	lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, false);
-  error_count += test(fg, test_count++, name, true, "hello");
+  // test 4
+  laf::push_function(L, [](std::string a) { return a + " world!"; } );
+  lua_setglobal(L, "add_world");
+  test(L, "assert(add_world('hello') == 'hello world!')");
 
+  // test 5
+  laf::push_function(L, fun_ptr_cstr_id);
+  lua_setglobal(L, "str_id");
+  test(L, "assert(str_id('lua!') == 'lua!')");
 
-  // using make_string
-  // std::string returns, std::sting args, all optionals args
-	name = "make_string";
-	function<string(int, double, bool, const char *, string)> make_string =
-	[](int a, double b, bool c, const char * d, string e) {
-		stringstream s;
-		s << a << " " << b << " " << c << " " << d << " " << e;
-		cout << "generated: '" << s.str() << "'" << endl;
-		return s.str();
-	};
-
-  string stdstr = "just a std::string";
-	fg.push_function(make_string, 6, 9.22, true, "just a cstr", stdstr);
-	lua_setglobal(L, name);
-
-  string expected = "1 1.1 1 aaa bbb";
-  string bbb = "bbb";
-  error_count += test(fg, test_count++, name, expected, 1, 1.1, true, "aaa", bbb);
-  expected = "6 9.22 0 just a cstr just a std::string";
-  error_count += test(fg, test_count++, name, expected);
-
-
-  // const char * returns, void (no) args
-	name = "filename";
-	function<const char *()> filename = []() {
-		return __FILE__;
-	};
-
-	fg.push_function(filename);
-	lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, __FILE__);
-
-
-  // using checkboring
-  // userdata args
-  name = "checkboring";
-	function<bool(boring *)> checkboring = [](boring * b) {
-		printf("%p contains: %d\n", (void *)b, b->state);
-		return b->is_boring();
-	};
-	fg.push_function(checkboring);
-	lua_setglobal(L, name);
-	
-  luaL_newmetatable(L, "boring");
-  lua_pop(L, 1);
-	fg.register_type<boring>("boring");
-  new(lua_newuserdata(L, sizeof(boring))) boring(1);
-  luaL_getmetatable(L, "boring");
+  // test 6
+  A * a = new(lua_newuserdata(L, sizeof(A))) A(13);
+  luaL_newmetatable(L, typeid(A).name());
   lua_setmetatable(L, -2);
-  lua_setglobal(L, "boring_1");
-  new(lua_newuserdata(L, sizeof(boring))) boring(49);
-  luaL_getmetatable(L, "boring");
-  lua_setmetatable(L, -2);
-  lua_setglobal(L, "boring_49");
-  error_count += test(fg, test_count++, name, false, testfunction::name("boring_1"));
-  error_count += test(fg, test_count++, name, true, testfunction::name("boring_49"));
+  lua_setglobal(L, "A");
 
-  // function pointer tests
+  laf::push_function(L, &A::getVal);
+  lua_setglobal(L, "get_val_of_A");
+  test(L, "assert(get_val_of_A(A) == 13)");
 
-  // using isEven
-  name = "isEven";
-  fg.push_function(isEven);
-  lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, true, 6);
-  error_count += test(fg, test_count++, name, false, 7);
-
-  name = "setGlobalInt";
-  int new_gi_val = 6;
-  fg.push_function(setGlobalInt);
-  lua_setglobal(L, name);
-  error_count += testvoid(fg, test_count++, name, new_gi_val);
-  if (global_int != new_gi_val) {
-    printf("error: setGlobalInt did not update global as expected: %d != %d\n", global_int, new_gi_val);
-    error_count += 1;
-  }
-
-  name = "alwaysTrue";
-  fg.push_function(alwaysTrue);
-  lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, true);
-
-  name = "getGlobalBoring";
-  fg.push_function(getGlobalBoring);
-  lua_setglobal(L, name);
-  error_count += test(fg, test_count++, name, &global_boring);
-
-  if (error_count == 0) {
-    printf("all passed!\n");
-  }
-  else {
-    printf("%d tests failed\n", error_count);
-  }
-
-  // if debug then drop into a prompt
-  while (debug) {
-    cout << "lua> ";
-    std::string line;
-    getline(cin, line);
-    if (line == "quit") break;
-    if (luaL_dostring(L, line.c_str()) != 0) {
-      printf("%s\n", lua_tostring(L, -1));
-      lua_pop(L, 1);
-    }
-  }
-
-  lua_close(L);
+  // print status
+  std::cout << std::endl << test_count - error_count << " of " << test_count << " tests ran successfully" << std::endl;
   return error_count;
 }
