@@ -6,100 +6,78 @@
 // boolean   |  bool
 // string    |  std::string
 //           |  const char *
-// userdata  |  T*
+// userdata  |  T *
 //
 
 #ifndef LUAAUTOFUNCTION_HPP_
 #define LUAAUTOFUNCTION_HPP_
 
 #include <functional>
-#include <map>
 #include <string>
 #include <typeindex>
-#include <utility>
 #include <lua.hpp>
-
 
 namespace laf {
 //
-// The object type used to specify a required index when specifying
-// default parameters.
+// lua_type_info defines attributes and functions for various C++ types
 //
-struct noneType {};
-
-
+// defining a specialization for a new type will let you use that type
+// with laf::push_function
 //
-// Additional check* and opt* functions to read from the stack
-// userdata gets auto-named from the type's typeid name
-//
-inline bool checkboolean(lua_State * L, int stack_index) {
-  //if (lua_type(L, stack_index) != LUA_TBOOLEAN) luaL_argerror(L, stack_index, "expected boolean");
-  luaL_checktype(L, stack_index, LUA_TBOOLEAN);
-  return lua_toboolean(L, stack_index);
-}
-
-inline bool optboolean(lua_State * L, int stack_index, bool optional) {
-  if (lua_type(L, stack_index) == LUA_TNIL) return optional;
-  return lua_toboolean(L, stack_index);
-}
-
-template <typename T>
-constexpr const char * type_name() { return typeid(T).name(); }
-
-template <typename T>
-T * checkudata(lua_State * L, int stack_index) {
-  return (T *)luaL_checkudata(L, stack_index, type_name<T>());
-}
-
-template <typename T>
-T * optudata(lua_State * L, int stack_index, const T * optional) {
-  if (lua_type(L, stack_index) == LUA_TNIL) return optional;
-  else return (T *)luaL_checkudata(L, stack_index, type_name<T>());
-}
-
-const char * (*checkstring)(lua_State *, int) = [](lua_State * L, int idx) {
-  return luaL_checkstring(L, idx);
+template <typename T> struct lua_type_info {
+  static constexpr int type = LUA_TUSERDATA;
+  static inline const char * get_identifier() { return typeid(T).name(); }
+  static inline int push(lua_State * L, int value) {
+    // lightuserdata cannot include a metatable and we don't want to make a new (heavy) userdata everything
+    static_assert(sizeof(T) == -1, "pushing T * is not allowed");
+  }
+  static inline T * get(lua_State * L, int index) { return (T*)lua_touserdata(L, index); }
+  static inline T * check(lua_State * L, int index) { return (T*)luaL_checkudata(L, index, get_identifier()); }
 };
 
-
-//
-// Grabbing from the stack
-//
-// Each type has an associated get methods with signature T(lua_State*, int) with T != void
-//
-// luaL_checkstring is a macro so we need to wrap it in a lambda
-//
-template<typename T> struct type_mapping { T * (*get)(lua_State * L, int index) = checkudata<T>; };
-template<> struct type_mapping<double> { double (*get)(lua_State * L, int index) = luaL_checknumber; };
-template<> struct type_mapping<bool> { bool (*get)(lua_State * L, int index) = checkboolean; };
-template<> struct type_mapping<int> { 
-  int (*get)(lua_State *, int) = [](lua_State * L, int idx) { return (int)luaL_checknumber(L, idx); }; 
-};
-template<> struct type_mapping<std::string> { 
-  std::string (*get)(lua_State *, int) = [](lua_State * L, int idx) { return std::string(luaL_checkstring(L, idx)); };
-};
-template<> struct type_mapping<const char *> {
-  const char * (*get)(lua_State *, int) = [](lua_State * L, int idx) { return luaL_checkstring(L, idx); };
+template <> struct lua_type_info<int> {
+  static constexpr int type = LUA_TNUMBER;
+  static inline int push(lua_State * L, int value) { lua_pushnumber(L, value); return 1; }
+  static inline int get(lua_State * L, int index) { return lua_tonumber(L, index); }
+  static inline int check(lua_State * L, int index) { return luaL_checknumber(L, index); }
 };
 
-// use above to get the type
-template <typename T> typename std::result_of<decltype(type_mapping<T>::get)(lua_State*, int)>::type
-get_type(lua_State * L, int index, type_mapping<T> tm) { return tm.get(L, index); }
+template <> struct lua_type_info<double> {
+  static constexpr int type = LUA_TNUMBER;
+  static inline int push(lua_State * L, double value) { lua_pushnumber(L, value); return 1; }
+  static inline double get(lua_State * L, double index) { return lua_tonumber(L, index); }
+  static inline double check(lua_State * L, double index) { return luaL_checknumber(L, index); }
+};
 
+template <> struct lua_type_info<bool> {
+  static constexpr int type = LUA_TBOOLEAN;
+  static inline int push(lua_State * L, bool val) { lua_pushboolean(L, val); return 1; }
+  static inline bool get(lua_State * L, int index) { return lua_toboolean(L, index); }
+  static inline bool check(lua_State * L, int index) {
+    luaL_checktype(L, index, LUA_TBOOLEAN);
+    return lua_toboolean(L, index);
+  }
+};
 
-//
-// Pushing to the stack
-//
-inline void push_type(lua_State * L, const int & val) { lua_pushnumber(L, val); }
-inline void push_type(lua_State * L, const double & val) { lua_pushnumber(L, val); }
-inline void push_type(lua_State * L, const bool & val) { lua_pushboolean(L, val); }
-inline void push_type(lua_State * L, const char * val) { lua_pushstring(L, val); }
-inline void push_type(lua_State * L, const std::string & val) { lua_pushstring(L, val.c_str()); }
+template <> struct lua_type_info<std::string> {
+  static constexpr int type = LUA_TSTRING;
+  static inline int push(lua_State * L, std::string val) { lua_pushstring(L, val.c_str()); return 1; }
+  static inline std::string get(lua_State * L, int index) {
+    const char * str = lua_tostring(L, index);
+    return str ? str : "";
+  }
+  static inline std::string check(lua_State * L, int index) {
+    const char * str = luaL_checkstring(L, index);
+    return str ? str : "";
+  }
+};
 
-template <typename T> void push_type(lua_State * L, T * val) { 
-  static_assert(sizeof(T) == -1, 
-      "An arbitrary userdata pointer cannot have a metatable, pushing of arbitrary types is disabled");
-}
+template <> struct lua_type_info<const char *> {
+  static constexpr int type = LUA_TSTRING;
+  static inline int push(lua_State * L, const char * val) { lua_pushstring(L, val); return 1; }
+  static inline const char * get(lua_State * L, int index) { return lua_tostring(L, index); }
+  static inline const char * check(lua_State * L, int index) { return luaL_checkstring(L, index); }
+};
 
 
 //
@@ -111,7 +89,7 @@ template<typename Rt, typename... Args> struct fun_type_list {};
 template<typename F, typename... Args, size_t... Idxs>
 inline std_lua_cfun generate(F && f, fun_type_list<void, Args...>, std::index_sequence<Idxs...>) {
   return [f](lua_State * L) -> int {
-    f(get_type(L, Idxs+1, type_mapping<Args>())...);
+    f(lua_type_info<Args>::check(L, Idxs+1)...);
     return 0;
   };
 }
@@ -119,7 +97,7 @@ inline std_lua_cfun generate(F && f, fun_type_list<void, Args...>, std::index_se
 template<typename F, typename Rt, typename... Args, size_t... Idxs>
 inline std_lua_cfun generate(F && f, fun_type_list<Rt, Args...>, std::index_sequence<Idxs...>) {
   return [f](lua_State * L) -> int {
-    push_type(L, f(get_type(L, Idxs+1, type_mapping<Args>())...));
+    lua_type_info<Rt>::push(L, f(lua_type_info<Args>::check(L, Idxs+1)...));
     return 1;
   };
 }

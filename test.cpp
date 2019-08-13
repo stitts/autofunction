@@ -16,7 +16,7 @@ using namespace std;
  *  return types  -
  *   double       - X
  *   int          - X
- *   bool         - 
+ *   bool         -
  *   const char * - X
  *   std::string  - X
  *   void         - X
@@ -24,7 +24,7 @@ using namespace std;
  *  args:         - X
  *   double       - X
  *   int          - X
- *   bool         - 
+ *   bool         -
  *   const char * - X
  *   std::string  - X
  *   void (none)  -
