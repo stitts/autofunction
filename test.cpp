@@ -37,6 +37,12 @@ struct A {
   int getVal() { return val; }
 };
 
+luaL_reg a_lua_methods[] = {
+  {"get_val", WRAP_MEMBER_FUN(&A::getVal)},
+  {0, 0}
+};
+
+
 const char * fun_ptr_cstr_id(const char * a) {
   return a;
 }
@@ -57,6 +63,7 @@ void test(lua_State * L, const char * lua_statement) {
   std::cout << "test passed" << std::endl << std::endl;
 }
 
+
 int main() {
   lua_State * L = luaL_newstate();
   luaL_openlibs(L);
@@ -75,7 +82,6 @@ int main() {
   lua_setglobal(L, "axpbpv");
   test(L, "assert(axpbpv(4, 3, 8) == 22)");
 
-
   // test 3
   laf::push_function(L, [](int a, double b) { std::cout << a << " " << b << std::endl; });
   lua_setglobal(L, "print_a_b");
@@ -93,13 +99,19 @@ int main() {
 
   // test 6
   A * a = new(lua_newuserdata(L, sizeof(A))) A(13);
-  luaL_newmetatable(L, typeid(A).name());
+  luaL_newmetatable(L, laf::lua_type_info<A>::identifier());
+  lua_newtable(L);
+  luaL_register(L, nullptr, a_lua_methods);
+  lua_setfield(L, -2, "__index");
   lua_setmetatable(L, -2);
   lua_setglobal(L, "A");
 
   laf::push_function(L, &A::getVal);
   lua_setglobal(L, "get_val_of_A");
   test(L, "assert(get_val_of_A(A) == 13)");
+
+  // test 7
+  test(L, "assert(A:get_val() == 13)");
 
   // print status
   std::cout << std::endl << test_count - error_count << " of " << test_count << " tests ran successfully" << std::endl;
