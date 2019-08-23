@@ -39,7 +39,7 @@ template <typename... Args>
 struct index_sequence_for : make_index_sequence<sizeof...(Args)> {};
 #endif
 
-#define WRAP_FUN_PTR(f) [](lua_State * L) -> int { \
+#define LAF_WRAP(f) [](lua_State * L) -> int { \
   using DF = typename std::decay<decltype(f)>::type; \
   using traits = laf::function_traits<DF>; \
   using FT = typename traits::type; \
@@ -47,8 +47,9 @@ struct index_sequence_for : make_index_sequence<sizeof...(Args)> {};
   return _f(L); \
 }
 
-#define WRAP_MEMBER_FUN(f) [](lua_State * L) -> int { \
-  static_assert(std::is_member_function_pointer<decltype(f)>::value, "WRAP_MEMBER_FUNCTION is only for member function pointers (&Obj::member)"); \
+#define LAF_WRAP_MEMBER(f) [](lua_State * L) -> int { \
+  static_assert(std::is_member_function_pointer<decltype(f)>::value, \
+      "WRAP_MEMBER_FUNCTION is only for member function pointers (&Obj::member)"); \
   auto wrapped = laf::wrap_member_function(f); \
   using traits = laf::function_traits<decltype(wrapped)>; \
   using FT = typename traits::type; \
@@ -60,8 +61,14 @@ struct index_sequence_for : make_index_sequence<sizeof...(Args)> {};
 namespace laf {
 using std_lua_cfun = std::function<int(lua_State *)>;
 
+// TODO
 template<typename Rt, typename Cls, typename...  Args>
 inline std::function<Rt(Cls *, Args...)> wrap_member_function(Rt (Cls::*f)(Args...)) {
+  return [f](Cls * cls, Args... args) { return (cls->*f)(args...); };
+}
+
+template<typename Rt, typename Cls, typename...  Args>
+inline std::function<Rt(Cls *, Args...)> wrap_member_function(Rt (Cls::*f)(Args...) const) {
   return [f](Cls * cls, Args... args) { return (cls->*f)(args...); };
 }
 
@@ -107,6 +114,12 @@ struct function_traits<Rt (*)(As...)> : public function_traits<Rt, As...> {};
 template <typename Rt, typename... As>
 struct function_traits<Rt(As...)> : public function_traits<Rt, As...> {};
 
+
+//
+// identifier
+//
+template<typename T> const char * identifier() { return typeid(T).name(); }
+
 //
 // lua_type_info defines attributes and functions for various C++ types
 //
@@ -114,22 +127,39 @@ struct function_traits<Rt(As...)> : public function_traits<Rt, As...> {};
 // with laf::push_function
 //
 template <typename T> struct lua_type_info {
-  using T_no_ptr = typename std::remove_pointer<T>::type;
-  static constexpr int type = LUA_TUSERDATA;
-  static const char * identifier() { return typeid(T_no_ptr).name(); }
-  static inline int push(lua_State * L, int value) {
+  using BaseT = typename std::remove_pointer<T>::type;
+  // TODO
+  //static constexpr int type = LUA_TUSERDATA;
+  static inline int push(lua_State * /*L*/, BaseT /*value*/) {
     // lightuserdata cannot include a metatable and we don't want to make a new (heavy) userdata everything
-    static_assert(sizeof(T) == -1, "pushing T * is not allowed");
+    static_assert(sizeof(T) == -1, "pushing arbitrary T is not implemented");
+    return 0;
   }
-  static inline T_no_ptr * get(lua_State * L, int index) { return (T_no_ptr*)lua_touserdata(L, index); }
-  static inline T_no_ptr * check(lua_State * L, int index) { return (T_no_ptr*)luaL_checkudata(L, index, identifier()); }
+  static inline BaseT * get(lua_State * L, int index) { return (BaseT*)lua_touserdata(L, index); }
+  static inline BaseT * check(lua_State * L, int index) {
+    return (BaseT*)luaL_checkudata(L, index, identifier<BaseT>());
+  }
 };
 
 template <> struct lua_type_info<int> {
   static constexpr int type = LUA_TNUMBER;
   static inline int push(lua_State * L, int value) { lua_pushnumber(L, value); return 1; }
   static inline int get(lua_State * L, int index) { return lua_tonumber(L, index); }
-  static inline int check(lua_State * L, int index) { return luaL_checknumber(L, index); }
+  static inline int check(lua_State * L, int index) { return luaL_checkint(L, index); }
+};
+
+template <> struct lua_type_info<long> {
+  static constexpr int type = LUA_TNUMBER;
+  static inline int push(lua_State * L, long value) { lua_pushnumber(L, value); return 1; }
+  static inline long get(lua_State * L, int index) { return lua_tonumber(L, index); }
+  static inline long check(lua_State * L, int index) { return luaL_checklong(L, index); }
+};
+
+template <> struct lua_type_info<unsigned> {
+  static constexpr int type = LUA_TNUMBER;
+  static inline int push(lua_State * L, unsigned value) { lua_pushnumber(L, value); return 1; }
+  static inline unsigned get(lua_State * L, int index) { return lua_tonumber(L, index); }
+  static inline unsigned check(lua_State * L, int index) { return luaL_checknumber(L, index); }
 };
 
 template <> struct lua_type_info<double> {
@@ -175,7 +205,11 @@ template <> struct lua_type_info<const char *> {
 template<typename F, typename... Args, std::size_t... Idxs>
 inline std_lua_cfun generate(F && f, std::function<void(Args...)>, index_sequence<Idxs...>) {
   return [f](lua_State * L) -> int {
-    f(lua_type_info<Args>::check(L, Idxs+1)...);
+    f(lua_type_info<
+          typename std::remove_const<
+            typename std::remove_reference<Args>::type
+          >::type
+        >::check(L, Idxs+1)...);
     return 0;
   };
 }
@@ -183,7 +217,11 @@ inline std_lua_cfun generate(F && f, std::function<void(Args...)>, index_sequenc
 template<typename F, typename Rt, typename... Args, std::size_t... Idxs>
 inline std_lua_cfun generate(F && f, std::function<Rt(Args...)>, index_sequence<Idxs...>) {
   return [f](lua_State * L) -> int {
-    lua_type_info<Rt>::push(L, f(lua_type_info<Args>::check(L, Idxs+1)...));
+    lua_type_info<Rt>::push(L, f(lua_type_info<
+            typename std::remove_const<
+              typename std::remove_reference<Args>::type
+            >::type
+          >::check(L, Idxs+1)...));
     return 1;
   };
 }
@@ -210,9 +248,17 @@ void push_function(lua_State * L, F && f) {
   push_function(L, DF(f), FT());
 }
 
+// TODO:
 // ...but member function pointers, we need to move the object type to the first parameter
 template<typename Rt, typename Cls, typename... Args>
 void push_function(lua_State * L, Rt (Cls::*f)(Args...)) {
+  //push_function(L, [f](Cls * cls, Args... args) { return (cls->*f)(args...); });
+  push_function(L, wrap_member_function(f));
+}
+
+// ...but member function pointers, we need to move the object type to the first parameter
+template<typename Rt, typename Cls, typename... Args>
+void push_function(lua_State * L, Rt (Cls::*f)(Args...) const) {
   //push_function(L, [f](Cls * cls, Args... args) { return (cls->*f)(args...); });
   push_function(L, wrap_member_function(f));
 }
